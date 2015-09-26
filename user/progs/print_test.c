@@ -9,6 +9,6 @@
 
 int main() {
     char buf[] = "Hello";
-    print(10, buf);
+    print(5, buf);
     return 0;
 }

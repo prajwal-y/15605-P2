@@ -15,7 +15,7 @@ wait:
     /* Setup */
     pushl %ebp          /* Old EBP */
     movl %esp,%ebp      /* New EBP */
-    push %esi           /* Callee save register */
+    pushl %esi           /* Callee save register */
 
     /* Body */
     movl 8(%ebp),%esi   /* Store argument in esi */

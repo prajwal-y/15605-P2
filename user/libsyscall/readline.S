@@ -16,7 +16,7 @@ readline:
     /* Setup */
     pushl %ebp          /* Old EBP */
     movl %esp,%ebp      /* New EBP */
-    push %esi           /* Callee save register */
+    pushl %esi           /* Callee save register */
 
     /* Body */
     movl %ebp,%esi   /* Move address ofebp to esi */
