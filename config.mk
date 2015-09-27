@@ -85,7 +85,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the 410user/progs
 # directory
 #
-410TESTS =
+410TESTS = actual_wait
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -98,7 +98,7 @@ STUDENTTESTS = print_test
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = malloc.o panic.o
+THREAD_OBJS = malloc.o panic.o mutex.o
 
 # Thread Group Library Support.
 #
