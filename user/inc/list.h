@@ -11,6 +11,7 @@
  *  is done with a bit of memory arithmetic.
  *
  *  @author Rohit Upadhyaya (rjupadhy)
+ *  @author Prajwal Yadapadithaya (pyadapad)
  */
 
 #ifndef __LIST_H
