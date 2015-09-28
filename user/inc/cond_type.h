@@ -7,7 +7,8 @@
 
 
 typedef struct cond {
-  /* fill this in */
+    int status;
+    list_head waiting;
 } cond_t;
 
 #endif /* _COND_TYPE_H */
