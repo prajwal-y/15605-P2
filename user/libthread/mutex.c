@@ -20,7 +20,7 @@ typedef struct blocked_thread {
  *
  *  Set the mutex value to 1 indicating that it is unlocked
  *  and initialize the wait queue. Initializing a mutex after
- *  intializing it sets the value to 1 and "unlocks" it. Depending
+ *  initializing it sets the value to 1 and "unlocks" it. Depending
  *  on if another thread holds the lock currently, this can lead to
  *  undefined behavior. 
  *
@@ -78,10 +78,13 @@ void mutex_lock(mutex_t *mp) {
  */
 void mutex_unlock(mutex_t *mp) {
     list_head *waiting_thread = get_first(&mp->waiting);
+
     if (waiting_thread != NULL) {
+        blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
+                                          link);
         del_entry(waiting_thread);
-        int next_tid = waiting_thread->tid;
-        free(waiting_thread);
+        int next_tid = thr->tid;
+        free(thr);
         make_runnable(next_tid);
     } else {
         mp->value = 1;

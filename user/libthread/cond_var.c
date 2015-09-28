@@ -17,9 +17,6 @@ typedef struct blocked_thread {
     list_head link;
 } blocked_thread_t;
 
-mutex_t queue_mutex;
-int reject = 0;
-
 /** @brief initialize a cond var
  *
  *  Set status of cond var to 0. It "initializes" the cond var pointed to 
@@ -33,7 +30,7 @@ int cond_init(cond_t *cv) {
         return ERR_INVAL;
     }
     cv->status = 1;
-    mutex_init(&queue_mutex);
+    mutex_init(&cv->queue_mutex);
     init_head(&cv->waiting);
     return 0;
 }
@@ -71,15 +68,12 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
     /* Atomically add ourselves to the queue */
     mutex_lock(&queue_mutex);
     add_to_list(&t->link, &cv->waiting);
-    mutex_unlock(mp);
-    mutex_unlock(&queue_mutex);
-    
-    deschedule(&reject);
-
-    /* Atomically set the value of reject to 0 */
-    mutex_lock(&queue_mutex);
     reject = 0;
     mutex_unlock(&queue_mutex);
+
+    mutex_unlock(mp);
+    deschedule(&reject);
+
     mutex_lock(mp);
 }
 
@@ -102,9 +96,11 @@ void cond_signal(cond_t *cv) {
     mutex_unlock(&queue_mutex);
     
     if (waiting_thread != NULL) {
+        blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
+                                          link);
         del_entry(waiting_thread);
-        int next_tid = waiting_thread->tid;
-        free(waiting_thread);
+        int next_tid = thr->tid;
+        free(thr);
         make_runnable(next_tid);
     }
 }

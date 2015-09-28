@@ -8,7 +8,9 @@
 
 typedef struct cond {
     int status;
+    int reject;
     list_head waiting;
+    mutex_t queue_mutex;
 } cond_t;
 
 #endif /* _COND_TYPE_H */
