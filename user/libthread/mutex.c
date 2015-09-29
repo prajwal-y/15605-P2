@@ -30,8 +30,8 @@ int mutex_init(mutex_t *mp) {
     if (mp == NULL) {
         return ERR_INVAL;
     }
-   	mp->value = 1;
-    init_head(&(mp->waiting));
+	mp->value = 1;
+    init_head(&mp->waiting);
     return 0;
 }
 
