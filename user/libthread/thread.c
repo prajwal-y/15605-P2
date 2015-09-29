@@ -9,6 +9,17 @@
 #include <list.h>
 #include <syscall.h>
 #include <thread.h>
+#include <tcb.h>
+#include <thread.h>
+#include <errors.h>
+#include <malloc.h>
+#include <cond.h>
+#include <simics.h>
+
+#define STACK_PADDING(size) ((((size) % 4) == 0) ? 0 : (4 - ((size) % 4)))
+
+static unsigned int stack_size;
+static tcb_t head;
 
 /**
  * @brief This function is responsible for initializing the
@@ -19,6 +30,8 @@
  * @return int 0 if initialization is successful. -1 otherwise
  */
 int thr_init(unsigned int size) {
+    stack_size = size + STACK_PADDING(size);
+    init_head(&head.tcb_list);
 	return 0;
 }
 
@@ -34,7 +47,32 @@ int thr_init(unsigned int size) {
  * new thread is returned. Otherwise, -1 is returned.
  */
 int thr_create(void *(*func)(void *), void *arg) {
-	return 0;
+    //MAGIC_BREAK;
+    char *stack_base = ((char *)malloc(stack_size));
+    if (stack_base == NULL) {
+        return ERR_NOMEM;
+    }
+    lprintf("Malloc is succeded!!@");
+    stack_base += stack_size; 
+    int tid = thread_fork();
+    if (tid == 0) {
+        set_ebp(stack_base);
+        set_esp(stack_base);
+        func(arg);
+        thr_exit(NULL);
+    }
+    else {
+        tcb_t *thr = (tcb_t *)malloc(sizeof(tcb_t));
+        if (thr == NULL) {
+            return ERR_NOMEM;
+        }
+        thr->id = tid;
+        cond_init(&thr->waiting_threads);
+        add_to_tail(&thr->tcb_list, &head.tcb_list);
+        return tid;
+    }
+    /* Child thread should never come here */
+    return ERR_INVAL;
 }
 
 /**

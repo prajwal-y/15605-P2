@@ -14,4 +14,13 @@ int test_and_unset(void *target);
 /** @brief Atomically test the value of a memory location and set to 1. */
 int test_and_set(void *target);
 
+/** @brief Set the stack pointer to addr */
+void set_esp(void *addr);
+
+/** @brief Set the base pointer to addr */
+void set_ebp(void *addr);
+
+/** @brief Thread a fork! */
+int thread_fork();
+
 #endif /* !X86_ASM_H */
