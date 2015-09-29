@@ -14,7 +14,7 @@
 
 typedef struct blocked_thread {
     int tid;
-    list_head *link;
+    list_head link;
 } blocked_thread_t;
 
 /** @brief initialize a cond var
@@ -30,8 +30,8 @@ int cond_init(cond_t *cv) {
         return ERR_INVAL;
     }
     cv->status = 1;
-    mutex_init(cv->queue_mutex);
-    init_head(cv->waiting);
+    mutex_init(&cv->queue_mutex);
+    init_head(&cv->waiting);
     return 0;
 }
 
@@ -47,7 +47,7 @@ void cond_destroy(cond_t *cv) {
     if (cv == NULL) {
         return;
     }
-    mutex_destroy(cv->queue_mutex);
+    mutex_destroy(&cv->queue_mutex);
     cv->status = 0;
 }
 
@@ -66,10 +66,10 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
                             malloc(sizeof(blocked_thread_t));
     t->tid = tid;
     /* Atomically add ourselves to the queue */
-    mutex_lock(cv->queue_mutex);
-    add_to_tail(t->link, cv->waiting);
+    mutex_lock(&cv->queue_mutex);
+    add_to_tail(&t->link, &cv->waiting);
     cv->reject = 0;
-    mutex_unlock(cv->queue_mutex);
+    mutex_unlock(&cv->queue_mutex);
 
     mutex_unlock(mp);
     deschedule(&(cv->reject));
@@ -90,10 +90,10 @@ void cond_signal(cond_t *cv) {
      * for us to be descheduled after the signal and hence losing the signal
      * forever. Also get the first waiting thread and make it runnable.
      */
-	mutex_lock(cv->queue_mutex);
+	mutex_lock(&cv->queue_mutex);
 	cv->reject = 1;
-    list_head *waiting_thread = get_first(cv->waiting);
-    mutex_unlock(cv->queue_mutex);
+    list_head *waiting_thread = get_first(&cv->waiting);
+    mutex_unlock(&cv->queue_mutex);
     
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
