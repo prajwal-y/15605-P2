@@ -56,10 +56,12 @@ int thr_create(void *(*func)(void *), void *arg) {
     stack_base += stack_size; 
     int tid = thread_fork();
     if (tid == 0) {
-        set_ebp(stack_base);
+    	lprintf("Inside child thread");
+        /*set_ebp(stack_base);
         set_esp(stack_base);
         func(arg);
-        thr_exit(NULL);
+    	lprintf("Child thread returning with thread exit");
+        thr_exit(NULL);*/
     }
     else {
         tcb_t *thr = (tcb_t *)malloc(sizeof(tcb_t));
@@ -69,6 +71,7 @@ int thr_create(void *(*func)(void *), void *arg) {
         thr->id = tid;
         cond_init(&thr->waiting_threads);
         add_to_tail(&thr->tcb_list, &head.tcb_list);
+    	lprintf("Parent thread returning %p", stack_base);
         return tid;
     }
     /* Child thread should never come here */
