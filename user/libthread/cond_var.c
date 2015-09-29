@@ -47,7 +47,7 @@ void cond_destroy(cond_t *cv) {
     if (cv == NULL) {
         return;
     }
-    mutex_destroy(&queue_mutex);
+    mutex_destroy(&cv->queue_mutex);
     cv->status = 0;
 }
 
@@ -66,13 +66,13 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
                             malloc(sizeof(blocked_thread_t));
     t->tid = tid;
     /* Atomically add ourselves to the queue */
-    mutex_lock(&queue_mutex);
-    add_to_list(&t->link, &cv->waiting);
-    reject = 0;
-    mutex_unlock(&queue_mutex);
+    mutex_lock(&cv->queue_mutex);
+    add_to_tail(&t->link, &cv->waiting);
+    cv->reject = 0;
+    mutex_unlock(&cv->queue_mutex);
 
     mutex_unlock(mp);
-    deschedule(&reject);
+    deschedule(&(cv->reject));
 
     mutex_lock(mp);
 }
@@ -90,10 +90,10 @@ void cond_signal(cond_t *cv) {
      * for us to be descheduled after the signal and hence losing the signal
      * forever. Also get the first waiting thread and make it runnable.
      */
-    mutex_lock(&queue_mutex);
-    reject = 1;
+	mutex_lock(&cv->queue_mutex);
+	cv->reject = 1;
     list_head *waiting_thread = get_first(&cv->waiting);
-    mutex_unlock(&queue_mutex);
+    mutex_unlock(&cv->queue_mutex);
     
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 

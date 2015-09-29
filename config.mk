@@ -98,7 +98,7 @@ STUDENTTESTS = print_test
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = malloc.o panic.o mutex.o
+THREAD_OBJS = malloc.o panic.o mutex.o cond_var.o thread.o
 
 # Thread Group Library Support.
 #

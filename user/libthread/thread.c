@@ -19,6 +19,7 @@
  * @return int 0 if initialization is successful. -1 otherwise
  */
 int thr_init(unsigned int size) {
+	return 0;
 }
 
 /**
@@ -33,6 +34,7 @@ int thr_init(unsigned int size) {
  * new thread is returned. Otherwise, -1 is returned.
  */
 int thr_create(void *(*func)(void *), void *arg) {
+	return 0;
 }
 
 /**
@@ -48,6 +50,7 @@ int thr_create(void *(*func)(void *), void *arg) {
  * @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
+	return 0;
 }
 
 /**
@@ -66,6 +69,7 @@ void thr_exit(void *status) {
  * @return int The thread ID of the current thread.
  */
 int thr_getid() {
+	return 0;
 }
 
 /**
@@ -77,4 +81,5 @@ int thr_getid() {
  * @return int 0 if successful, 
  */
 int thr_yield(int tid) {
+	return 0;
 }
