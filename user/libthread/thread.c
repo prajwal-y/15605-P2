@@ -20,6 +20,8 @@
 
 static unsigned int stack_size;
 static tcb_t head;
+static volatile int count1 = 0;
+static volatile int count2 = 0;
 
 /**
  * @brief This function is responsible for initializing the
@@ -47,35 +49,13 @@ int thr_init(unsigned int size) {
  * new thread is returned. Otherwise, -1 is returned.
  */
 int thr_create(void *(*func)(void *), void *arg) {
-    //MAGIC_BREAK;
     char *stack_base = ((char *)malloc(stack_size));
     if (stack_base == NULL) {
         return ERR_NOMEM;
     }
-    lprintf("Malloc is succeded!!@");
-    stack_base += stack_size; 
-    int tid = thread_fork();
-    if (tid == 0) {
-    	lprintf("Inside child thread");
-        /*set_ebp(stack_base);
-        set_esp(stack_base);
-        func(arg);
-    	lprintf("Child thread returning with thread exit");
-        thr_exit(NULL);*/
-    }
-    else {
-        tcb_t *thr = (tcb_t *)malloc(sizeof(tcb_t));
-        if (thr == NULL) {
-            return ERR_NOMEM;
-        }
-        thr->id = tid;
-        cond_init(&thr->waiting_threads);
-        add_to_tail(&thr->tcb_list, &head.tcb_list);
-    	lprintf("Parent thread returning %p", stack_base);
-        return tid;
-    }
-    /* Child thread should never come here */
-    return ERR_INVAL;
+    stack_base += stack_size;
+	lprintf("stack_base %p", stack_base);
+	return thread_fork(stack_base, func, arg);
 }
 
 /**

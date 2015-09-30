@@ -19,31 +19,22 @@ test_and_set:
     xchg (%ecx), %eax
     ret
 
-.global set_ebp
-set_ebp:
-    movl 4(%esp), %ebp
-    ret
-
-.global set_esp
-set_esp:
-    movl 4(%esp), %ecx
-    movl (%esp), %edx
-    movl %edx, -4(%ecx)
-    addl $-4, %ecx
-    movl %ecx, %esp
-    ret
-
 .global thread_fork
 thread_fork:
-    /* Setup */
-    pushl %ebp          /* Old EBP */
-    movl %esp,%ebp      /* New EBP */
-
-    /* Body */
+	pushl %ebx
+	movl 8(%esp), %ebx /*Save the new %esp value*/
+	movl 12(%esp), %ecx /*Save the address of func*/
+	movl 16(%esp), %edx /*Save the address of argument to func*/
     int $THREAD_FORK_INT
-
-    /* Finish */
-    movl %ebp,%esp      /* Reset esp to start */
-    popl %ebp           /* Restore ebp */
-    ret                 
+	cmpl $0, %eax
+	je handle_child_thr
+	popl %ebx
+    ret
      
+handle_child_thr:
+	movl %ebx, %esp /*Update %esp of the new thread stack*/
+	pushl %edx /*Push the arguments to func*/
+	call %ecx /*Call the new thread function*/
+	pushl 0
+	call thr_exit
+	ret
