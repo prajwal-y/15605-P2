@@ -54,8 +54,10 @@ int thr_create(void *(*func)(void *), void *arg) {
         return ERR_NOMEM;
     }
     stack_base += stack_size;
-	lprintf("stack_base %p", stack_base);
-	return thread_fork(stack_base, func, arg);
+	int tid = thread_fork(stack_base, func, arg);
+	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
+	add_to_tail(&tcb->tcb_list, &head.tcb_list);
+	return tid;
 }
 
 /**
