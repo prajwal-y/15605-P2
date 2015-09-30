@@ -16,12 +16,15 @@
 #include <cond.h>
 #include <simics.h>
 
-#define STACK_PADDING(size) ((((size) % 4) == 0) ? 0 : (4 - ((size) % 4)))
+#define STACK_PADDING(size) ((((size)%4)==0)?0:(4-((size)%4)))
 
 static unsigned int stack_size;
 static tcb_t head;
 static volatile int count1 = 0;
 static volatile int count2 = 0;
+
+/*Helper functions*/
+static tcb_t *find_tcb(int tid);
 
 /**
  * @brief This function is responsible for initializing the
@@ -53,17 +56,21 @@ int thr_create(void *(*func)(void *), void *arg) {
     if (stack_base == NULL) {
         return ERR_NOMEM;
     }
-    stack_base += stack_size;
-	int tid = thread_fork(stack_base, func, arg);
+	int tid = thread_fork((stack_base + stack_size), func, arg);
+
 	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
+	tcb->stack_base = stack_base;
+	tcb->id = tid;
+	tcb->exited = 0;
+
 	add_to_tail(&tcb->tcb_list, &head.tcb_list);
 	return tid;
 }
 
 /**
  * @brief This function is responsible for "cleaning up" a thread with
- * given tid, optionally  returning  the  status  information provided 
- * by the thread at the time of exit. If the thread is not exited, it
+ * given tid, optionally returning the status information provided by 
+ * the thread at the time of exit. If the thread is not exited, it
  * will be suspended until the thread is exited.
  *
  * @param tid Thread ID of the thread to be cleaned up.
@@ -84,6 +91,13 @@ int thr_join(int tid, void **statusp) {
  * @return Void 
  */
 void thr_exit(void *status) {
+	int tid = gettid();
+	tcb_t *tcb = find_tcb(tid);
+	if(tcb == NULL) {
+		//TODO: Set error code
+	}
+	tcb->exited = 1;
+	tcb->status = status;
 }
 
 /**
@@ -105,4 +119,23 @@ int thr_getid() {
  */
 int thr_yield(int tid) {
 	return 0;
+}
+
+/**
+ * @brief Function to linearly scan the list of TCBs for the TCB with the
+ * given ID.
+ *
+ * @param tid Thread ID
+ *
+ * @return tcb_t The TCB for the given thread ID
+ */
+tcb_t *find_tcb(int tid) {
+	list_head *p = get_first(&head.tcb_list);
+	while(p != NULL && p != &head.tcb_list) {
+		tcb_t *t = get_entry(p, tcb_t, tcb_list);
+		if(t->id == tid) {
+			return t;
+		}
+	}
+	return NULL;
 }

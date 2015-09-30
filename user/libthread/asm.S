@@ -35,6 +35,6 @@ handle_child_thr:
 	movl %ebx, %esp /*Update %esp of the new thread stack*/
 	pushl %edx /*Push the arguments to func*/
 	call %ecx /*Call the new thread function*/
-	pushl 0
+	pushl %eax
 	call thr_exit
 	ret
