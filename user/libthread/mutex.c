@@ -10,11 +10,7 @@
 #include <syscall.h>
 #include <errors.h>
 #include <malloc.h>
-
-typedef struct blocked_thread {
-    int tid;
-    list_head link;
-} blocked_thread_t;
+#include <simics.h>
 
 /** @brief initialize a mutex
  *
@@ -31,7 +27,6 @@ int mutex_init(mutex_t *mp) {
         return ERR_INVAL;
     }
     mp->value = 1;
-    init_head(&mp->waiting);
     return 0;
 }
 
@@ -52,41 +47,27 @@ void mutex_destroy(mutex_t *mp) {
 /** @brief attempt to acquire the lock
  *
  *  We use the x86 xchg command to atomically test and set the value of the mutex.
- *  if the value is 0, we add the thread to the wait list of the 
- *  mutex and deschedule.
+ *  Spin lock till we get the lock. Theoretically this does not provide bounded
+ *  waiting. But we are on a uniprocessor environment assuming a scheduler that
+ *  does not starve any process and is fair. Assuming this and given that the
+ *  number of instructions required to test and get the lock is small, once a 
+ *  lock is released, it is highly likely that the next thread (that is fairly
+ *  scheduled by the kernel) will get the lock. By fair scheduling we mean that
+ *  no thread will wait forever (maybe something as simple as a round robin
+ *  scheduler).
  *
  *  @return void
  */
 void mutex_lock(mutex_t *mp) {
-    int curr = test_and_unset(&mp->value);
-    if (curr == 0) { /* Was currently locked so let someone else work */
-        blocked_thread_t *t = (blocked_thread_t *)
-                                malloc(sizeof(blocked_thread_t));
-        t->tid = gettid();
-        add_to_tail(&t->link, &mp->waiting);
-        int reject = 0;
-        deschedule(&reject);
-    }
+    while (!test_and_unset(&mp->value));
 }
 
 /** @brief release a lock
  *
- *  Set the value of mutex and make_runnable the first
- *  thread in the wait list
+ *  Set the value of mutex
  *
  *  @return void
  */
 void mutex_unlock(mutex_t *mp) {
-    list_head *waiting_thread = get_first(&mp->waiting);
-
-    if (waiting_thread != NULL) {
-        blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
-                                          link);
-        del_entry(waiting_thread);
-        int next_tid = thr->tid;
-        free(thr);
-        make_runnable(next_tid);
-    } else {
-        mp->value = 1;
-    }
+    test_and_set(&mp->value);
 }
