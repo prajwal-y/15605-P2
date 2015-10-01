@@ -18,10 +18,12 @@
 typedef struct tcb {
     int id;
 	int exited;
-    list_head tcb_list;
+	int reject;
 	void *stack_base;
 	void *status;
+    list_head tcb_list;
     cond_t waiting_threads;   /* For threads joining on this thread */
+	mutex_t tcb_mutex;
 } tcb_t;
 
 #endif /* __TCB_H */

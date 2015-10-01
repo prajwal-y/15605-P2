@@ -15,6 +15,7 @@
 #include <malloc.h>
 #include <cond.h>
 #include <simics.h>
+#include <contracts.h>
 
 #define STACK_PADDING(size) ((((size)%4)==0)?0:(4-((size)%4)))
 
@@ -22,6 +23,8 @@ static unsigned int stack_size;
 static tcb_t head;
 static volatile int count1 = 0;
 static volatile int count2 = 0;
+
+static mutex_t tcb_lock;
 
 /*Helper functions*/
 static tcb_t *find_tcb(int tid);
@@ -36,6 +39,7 @@ static tcb_t *find_tcb(int tid);
  */
 int thr_init(unsigned int size) {
     stack_size = size + STACK_PADDING(size);
+	mutex_init(&tcb_lock);
     init_head(&head.tcb_list);
 	return 0;
 }
@@ -56,14 +60,20 @@ int thr_create(void *(*func)(void *), void *arg) {
     if (stack_base == NULL) {
         return ERR_NOMEM;
     }
+	mutex_lock(&tcb_lock); /*Lock the TCB list for adding a TCB entry*/
 	int tid = thread_fork((stack_base + stack_size), func, arg);
 
 	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
 	tcb->stack_base = stack_base;
 	tcb->id = tid;
 	tcb->exited = 0;
+	tcb->reject = 0;
+	cond_init(&tcb->waiting_threads);
+	mutex_init(&tcb->tcb_mutex);
 
 	add_to_tail(&tcb->tcb_list, &head.tcb_list);
+	mutex_unlock(&tcb_lock);
+
 	return tid;
 }
 
@@ -80,6 +90,26 @@ int thr_create(void *(*func)(void *), void *arg) {
  * @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
+	if(tid <= 0) {
+		return ERR_INVAL;
+	}
+	tcb_t *tcb = find_tcb(tid);
+	assert(tcb != NULL);
+	mutex_lock(&tcb->tcb_mutex);
+	while(tcb->exited != 1) {
+		cond_wait(&tcb->waiting_threads, &tcb->tcb_mutex);
+		mutex_lock(&tcb->tcb_mutex);
+	}
+	
+	*statusp = tcb->status;
+	free(tcb->stack_base);
+	
+	mutex_lock(&tcb_lock);
+	del_entry(&tcb->tcb_list);
+	free(tcb);
+	mutex_unlock(&tcb_lock);	
+	
+	mutex_unlock(&tcb->tcb_mutex);
 	return 0;
 }
 
@@ -91,13 +121,13 @@ int thr_join(int tid, void **statusp) {
  * @return Void 
  */
 void thr_exit(void *status) {
-	int tid = gettid();
+	int tid = thr_getid();
 	tcb_t *tcb = find_tcb(tid);
-	if(tcb == NULL) {
-		//TODO: Set error code
-	}
+	assert(tcb != NULL);
 	tcb->exited = 1;
 	tcb->status = status;
+	cond_signal(&tcb->waiting_threads);
+	deschedule(&tcb->reject);
 }
 
 /**
@@ -106,7 +136,7 @@ void thr_exit(void *status) {
  * @return int The thread ID of the current thread.
  */
 int thr_getid() {
-	return 0;
+	return gettid();
 }
 
 /**
@@ -130,12 +160,15 @@ int thr_yield(int tid) {
  * @return tcb_t The TCB for the given thread ID
  */
 tcb_t *find_tcb(int tid) {
+	mutex_lock(&tcb_lock);
 	list_head *p = get_first(&head.tcb_list);
 	while(p != NULL && p != &head.tcb_list) {
 		tcb_t *t = get_entry(p, tcb_t, tcb_list);
 		if(t->id == tid) {
+			mutex_unlock(&tcb_lock);
 			return t;
 		}
 	}
+	mutex_unlock(&tcb_lock);
 	return NULL;
 }
