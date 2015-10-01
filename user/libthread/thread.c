@@ -90,7 +90,7 @@ int thr_create(void *(*func)(void *), void *arg) {
  * @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
-	if(tid <= 0) {
+	if(tid <= 0 || statusp == NULL) {
 		return ERR_INVAL;
 	}
 	tcb_t *tcb = find_tcb(tid);
@@ -127,7 +127,7 @@ void thr_exit(void *status) {
 	tcb->exited = 1;
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
-	deschedule(&tcb->reject);
+	vanish();
 }
 
 /**
