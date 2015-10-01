@@ -14,4 +14,7 @@ int test_and_unset(void *target);
 /** @brief Atomically test the value of a memory location and set to 1. */
 int test_and_set(void *target);
 
+/** @brief Thread a fork! */
+int thread_fork(void *stack_base, void *(*func)(void *), void *arg);
+
 #endif /* !X86_ASM_H */

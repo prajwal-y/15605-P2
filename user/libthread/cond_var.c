@@ -72,9 +72,7 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
     mutex_unlock(&cv->queue_mutex);
 
     mutex_unlock(mp);
-    deschedule(&(cv->reject));
-
-    mutex_lock(mp);
+    deschedule(&cv->reject);
 }
 
 /** @brief this function is called by a thread which wishes to signal
