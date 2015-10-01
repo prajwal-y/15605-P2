@@ -28,6 +28,8 @@ static mutex_t tcb_lock;
 
 /*Helper functions*/
 static tcb_t *find_tcb(int tid);
+static void remove_tcb(tcb_t *tcb);
+static void add_tcb(int tid, void *stack_base);
 
 /**
  * @brief This function is responsible for initializing the
@@ -41,6 +43,12 @@ int thr_init(unsigned int size) {
     stack_size = size + STACK_PADDING(size);
 	mutex_init(&tcb_lock);
     init_head(&head.tcb_list);
+
+	/*Add the current thread to the TCB list*/
+	mutex_lock(&tcb_lock);
+	add_tcb(thr_getid(), NULL);
+	mutex_unlock(&tcb_lock);
+
 	return 0;
 }
 
@@ -62,16 +70,7 @@ int thr_create(void *(*func)(void *), void *arg) {
     }
 	mutex_lock(&tcb_lock); /*Lock the TCB list for adding a TCB entry*/
 	int tid = thread_fork((stack_base + stack_size), func, arg);
-
-	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
-	tcb->stack_base = stack_base;
-	tcb->id = tid;
-	tcb->exited = 0;
-	tcb->reject = 0;
-	cond_init(&tcb->waiting_threads);
-	mutex_init(&tcb->tcb_mutex);
-
-	add_to_tail(&tcb->tcb_list, &head.tcb_list);
+	add_tcb(tid, stack_base);
 	mutex_unlock(&tcb_lock);
 
 	return tid;
@@ -93,7 +92,10 @@ int thr_join(int tid, void **statusp) {
 	if(tid <= 0 || statusp == NULL) {
 		return ERR_INVAL;
 	}
+	mutex_lock(&tcb_lock);
 	tcb_t *tcb = find_tcb(tid);
+	mutex_unlock(&tcb_lock);
+
 	assert(tcb != NULL);
 	mutex_lock(&tcb->tcb_mutex);
 	while(tcb->exited != 1) {
@@ -102,14 +104,14 @@ int thr_join(int tid, void **statusp) {
 	}
 	
 	*statusp = tcb->status;
-	free(tcb->stack_base);
+	if(tcb->stack_base != NULL) {
+		free(tcb->stack_base);
+	}
 	
 	mutex_lock(&tcb_lock);
-	del_entry(&tcb->tcb_list);
-	free(tcb);
-	mutex_unlock(&tcb_lock);	
+	remove_tcb(tcb);
+	mutex_unlock(&tcb_lock);
 	
-	mutex_unlock(&tcb->tcb_mutex);
 	return 0;
 }
 
@@ -122,7 +124,11 @@ int thr_join(int tid, void **statusp) {
  */
 void thr_exit(void *status) {
 	int tid = thr_getid();
+
+	mutex_lock(&tcb_lock);
 	tcb_t *tcb = find_tcb(tid);
+	mutex_unlock(&tcb_lock);
+
 	assert(tcb != NULL);
 	tcb->exited = 1;
 	tcb->status = status;
@@ -136,7 +142,7 @@ void thr_exit(void *status) {
  * @return int The thread ID of the current thread.
  */
 int thr_getid() {
-	return gettid();
+	return gettid(); //TODO: FIX THIS
 }
 
 /**
@@ -160,15 +166,46 @@ int thr_yield(int tid) {
  * @return tcb_t The TCB for the given thread ID
  */
 tcb_t *find_tcb(int tid) {
-	mutex_lock(&tcb_lock);
 	list_head *p = get_first(&head.tcb_list);
 	while(p != NULL && p != &head.tcb_list) {
 		tcb_t *t = get_entry(p, tcb_t, tcb_list);
 		if(t->id == tid) {
-			mutex_unlock(&tcb_lock);
 			return t;
 		}
+		p = p->next;
 	}
-	mutex_unlock(&tcb_lock);
 	return NULL;
+}
+
+/**
+ * @brief Function to add an entry to the list of TCBs
+ *
+ * @param stack_base Base address of the stack of the thread
+ *
+ * @return Void
+ */
+void add_tcb(int tid, void *stack_base) {
+	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
+	tcb->stack_base = stack_base;
+	tcb->id = tid;
+	tcb->exited = 0;
+	tcb->reject = 0;
+	cond_init(&tcb->waiting_threads);
+	mutex_init(&tcb->tcb_mutex);
+	add_to_tail(&tcb->tcb_list, &head.tcb_list);
+}
+
+/**
+ * @brief Function to remove an entry from the list of TCBs
+ *
+ * @param tcb TCB to be removed
+ *
+ * @return Void
+ */
+void remove_tcb(tcb_t *tcb) {	
+	del_entry(&tcb->tcb_list);
+	mutex_unlock(&tcb->tcb_mutex);
+	mutex_destroy(&tcb->tcb_mutex);
+	cond_destroy(&tcb->waiting_threads);
+	free(tcb);
 }
