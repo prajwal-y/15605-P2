@@ -89,7 +89,7 @@ int thr_create(void *(*func)(void *), void *arg) {
  * @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
-	if(tid <= 0 || statusp == NULL) {
+	if(tid < 0 || statusp == NULL) {
 		return ERR_INVAL;
 	}
 	mutex_lock(&tcb_lock);
