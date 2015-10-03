@@ -136,3 +136,30 @@ void cond_signal(cond_t *cv) {
 
     mutex_unlock(&cv->queue_mutex);
 }
+
+/** @brief this function signals all threads waiting on this cond var
+ *         
+ *
+ *  Grab a mutex to prevent unfortunate interleavings of this function 
+ *  with other cond var functions. We just signal all threads and do not worry
+ *  about signals being lost.
+ *
+ *  @param cv a pointer to the condition variable
+ *  @return void
+ */
+void cond_broadcast(cond_t *cv) {
+	mutex_lock(&cv->queue_mutex);
+    
+    list_head *waiting_thread = get_first(&cv->waiting);
+	while(waiting_thread != NULL && waiting_thread != &cv->waiting) {
+        blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
+                                          link);
+        del_entry(waiting_thread);
+        int next_tid = thr->tid;
+        free(thr);
+        make_runnable(next_tid);
+		waiting_thread = waiting_thread->next;
+	}
+
+    mutex_unlock(&cv->queue_mutex);
+}

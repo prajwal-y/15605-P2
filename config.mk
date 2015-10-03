@@ -87,7 +87,7 @@ UPDATE_METHOD = afs
 #
 410TESTS = actual_wait startle misbehave_wrap thr_exit_join agility_drill cyclone \
 			stack_test1 getpid_test1 join_specific_test bistromath cat paraguay \
-			switzerland
+			switzerland juggle multitest cvar_test
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -95,7 +95,7 @@ UPDATE_METHOD = afs
 # A list of the test programs you want compiled in from the user/progs
 # directory
 #
-STUDENTTESTS = print_test
+STUDENTTESTS = 
 
 ###########################################################################
 # Object files for your thread library
