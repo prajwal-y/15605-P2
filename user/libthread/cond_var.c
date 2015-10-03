@@ -53,6 +53,7 @@ void cond_destroy(cond_t *cv) {
     cv->status = 0;
 }
 
+//TODO: Fix comments for the function
 /** @brief This function allows a thread to wait for a function and releases
  *         the mutex that it needs to check that condition. The blocked thread
  *         may be awakened by a call to cond_signal or cond_broadcast
@@ -81,11 +82,20 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
     mutex_unlock(mp);
     mutex_unlock(&cv->queue_mutex);
 
-    lprintf("Before deschedule %d", cv->signal_count);
-    deschedule(&cv->signal_count);
-    lprintf("After deschedule %d", );
+	while(1) {
+    	deschedule(&cv->signal_count);
+		mutex_lock(&cv->queue_mutex);
+		if(cv->signal_count > 0) {
+			cv->signal_count--;
+			mutex_unlock(&cv->queue_mutex);
+			break;
+		}
+		mutex_unlock(&cv->queue_mutex);
+	}
 }
 
+
+//TODO: Fix comments for the function
 /** @brief this function is called by a thread which wishes to signal
  *         the occurence of an event to a thread which is waiting for 
  *         the event. The thread is awoken and we set the reject value 
@@ -106,7 +116,6 @@ void cond_signal(cond_t *cv) {
         int next_tid = thr->tid;
         free(thr);
         make_runnable(next_tid);
-        cv->signal_count--;
     }
 
     mutex_unlock(&cv->queue_mutex);
