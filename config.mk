@@ -86,7 +86,7 @@ UPDATE_METHOD = afs
 # directory
 #
 410TESTS = actual_wait startle misbehave_wrap thr_exit_join agility_drill cyclone \
-			stack_test1 getpid_test1 join_specific_test bistromath cat
+			stack_test1 getpid_test1 join_specific_test bistromath cat paraguay
 
 ###########################################################################
 # Test programs you have written which you wish to run

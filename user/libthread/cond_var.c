@@ -11,6 +11,7 @@
 #include <errors.h>
 #include <malloc.h>
 #include <mutex.h>
+#include <simics.h>
 
 typedef struct blocked_thread {
     int tid;
@@ -30,6 +31,7 @@ int cond_init(cond_t *cv) {
         return ERR_INVAL;
     }
     cv->status = 1;
+    cv->signal_count = 0;
     mutex_init(&cv->queue_mutex);
     init_head(&cv->waiting);
     return 0;
@@ -61,18 +63,27 @@ void cond_destroy(cond_t *cv) {
  */
 void cond_wait(cond_t *cv, mutex_t *mp) {
     /* Create a blocked task struct */
+    mutex_lock(&cv->queue_mutex);
+
+    /*Check for stored signals*/
+    if(cv->signal_count > 0) {
+        cv->signal_count--;
+        mutex_unlock(mp);
+        mutex_unlock(&cv->queue_mutex);
+        return;
+    }
+
     int tid = gettid();
     blocked_thread_t *t = (blocked_thread_t *)
                             malloc(sizeof(blocked_thread_t));
     t->tid = tid;
-    /* Atomically add ourselves to the queue */
-    mutex_lock(&cv->queue_mutex);
     add_to_tail(&t->link, &cv->waiting);
-    cv->reject = 0;
+    mutex_unlock(mp);
     mutex_unlock(&cv->queue_mutex);
 
-    mutex_unlock(mp);
-    deschedule(&cv->reject);
+    lprintf("Before deschedule %d", cv->signal_count);
+    deschedule(&cv->signal_count);
+    lprintf("After deschedule %d", );
 }
 
 /** @brief this function is called by a thread which wishes to signal
@@ -84,15 +95,10 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
  *  @return void
  */
 void cond_signal(cond_t *cv) {
-    /* Atomically set the value of reject to 1 to prevent any thread waiting 
-     * for us to be descheduled after the signal and hence losing the signal
-     * forever. Also get the first waiting thread and make it runnable.
-     */
 	mutex_lock(&cv->queue_mutex);
-	cv->reject = 1;
-    list_head *waiting_thread = get_first(&cv->waiting);
-    mutex_unlock(&cv->queue_mutex);
+	cv->signal_count++;
     
+    list_head *waiting_thread = get_first(&cv->waiting);
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
@@ -100,6 +106,9 @@ void cond_signal(cond_t *cv) {
         int next_tid = thr->tid;
         free(thr);
         make_runnable(next_tid);
+        cv->signal_count--;
     }
+
+    mutex_unlock(&cv->queue_mutex);
 }
 

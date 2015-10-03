@@ -95,7 +95,7 @@ int thr_join(int tid, void **statusp) {
 	mutex_lock(&tcb_lock);
 	tcb_t *tcb = find_tcb(tid);
 	mutex_unlock(&tcb_lock);
-
+    
 	assert(tcb != NULL);
 	mutex_lock(&tcb->tcb_mutex);
 	while(tcb->exited != 1) {
@@ -154,7 +154,7 @@ int thr_getid() {
  * @return int 0 if successful, 
  */
 int thr_yield(int tid) {
-	return 0;
+	return yield(tid);
 }
 
 /**
