@@ -8,7 +8,7 @@
 
 typedef struct cond {
     int status;
-    int reject;
+    int signal_count;
     list_head waiting;
     mutex_t queue_mutex;
 } cond_t;
