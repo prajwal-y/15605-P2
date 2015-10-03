@@ -19,7 +19,7 @@ void seh(void *arg, ureg_t *ureg) {
         new_pages(stack_bottom - PAGE_SIZE, PAGE_SIZE);
         stack_bottom -= PAGE_SIZE;
         swexn((char *)exception_stack + EXCEPTION_STACK_SIZE, 
-              stack_overflow_handler, NULL, ureg);
+              seh, NULL, ureg);
     }
 }
 
@@ -34,13 +34,13 @@ void uninstall_seh() {
     swexn(NULL, NULL, NULL, 0);
 }
 
+void seh_multi(void *arg, ureg_t *ureg) {
+    panic("%s", "No!!!");
+}
+
 void install_seh_multi() {
-    stack_bottom = stack_low;
     exception_stack = malloc(EXCEPTION_STACK_SIZE);
     swexn((char *)exception_stack + EXCEPTION_STACK_SIZE, 
           seh_multi, NULL, 0);
 }
     
-void seh_multi(void *arg, ureg_t *ureg) {
-    panic("%s", "No!!!");
-}
