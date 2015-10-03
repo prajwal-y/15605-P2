@@ -11,7 +11,6 @@
 #include <errors.h>
 #include <malloc.h>
 #include <mutex.h>
-#include <simics.h>
 
 /** @brief a struct to keep track of queue of threads blocked on something */
 typedef struct blocked_thread {
