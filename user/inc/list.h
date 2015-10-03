@@ -8,7 +8,8 @@
  *  a lot of flexibility as a single user-defined struct can be part of 
  *  multiple linked lists and is highly reusable and generic. The second
  *  trick is retrieving the struct address from the list_head struct which
- *  is done with a bit of memory arithmetic.
+ *  is done with a bit of memory arithmetic. 
+ *  One linked list to rule them all.
  *
  *  @author Rohit Upadhyaya (rjupadhy)
  *  @author Prajwal Yadapadithaya (pyadapad)

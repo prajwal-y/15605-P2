@@ -13,6 +13,7 @@
 #include <mutex.h>
 #include <simics.h>
 
+/** @brief a struct to keep track of queue of threads blocked on something */
 typedef struct blocked_thread {
     int tid;
     list_head link;
@@ -20,11 +21,13 @@ typedef struct blocked_thread {
 
 /** @brief initialize a cond var
  *
- *  Set status of cond var to 0. It "initializes" the cond var pointed to 
- *  by cv. This also initializes the queue of waiting threads. 
+ *  Set status of cond var to 1. It "initializes" the mutex pointed to 
+ *  by cv. This also initializes the head of queue of waiting threads. We also
+ *  keep track of signals that happen before a wait by counting signals
+ *  when the queue is empty. This way we avoid the lost signal problem. 
  *
  *  @param cv a pointer to the condition variable
- *  @return 0 on success and -1 for invalid input
+ *  @return 0 on success and ERR_INVAL for invalid input
  */
 int cond_init(cond_t *cv) {
     if (cv == NULL) {
@@ -32,7 +35,9 @@ int cond_init(cond_t *cv) {
     }
     cv->status = 1;
     cv->signal_count = 0;
-    mutex_init(&cv->queue_mutex);
+    if (mutex_init(&cv->queue_mutex) < 0) {
+        return ERR_INVAL;
+    }
     init_head(&cv->waiting);
     return 0;
 }
@@ -53,20 +58,29 @@ void cond_destroy(cond_t *cv) {
     cv->status = 0;
 }
 
-//TODO: Fix comments for the function
-/** @brief This function allows a thread to wait for a function and releases
- *         the mutex that it needs to check that condition. The blocked thread
- *         may be awakened by a call to cond_signal or cond_broadcast
+/** @brief This function allows a thread to sleep on a signal issued on 
+ *         some condition
  *
+ *  We check if there has been a call to cond_signal before cond_wait was 
+ *  called by checking the signal_count value. If there has been a signal we
+ *  just return. If not we add ourselves to the queue and attempt deschedule 
+ *  ourselves. The deschedule has to happen after we unlock mutexes and as such
+ *  there is a potential race condition which is handled by going in a loop 
+ *  and checking the value of signal_count. This while loop also ensures that
+ *  one cond_signal wakes up only one waiting thread.
+ *
+ *  @pre the mutex pointed to by mp must be locked
+ *  @post the mutex pointed to by mp is unlocked
  *  @param cv a pointer to the condition variable
  *  @param mp a pointer to the mutex associated with the thread
  *  @return void
  */
 void cond_wait(cond_t *cv, mutex_t *mp) {
-    /* Create a blocked task struct */
+    /* Mutex to enure cond_wait and cond_join are not interleaved 
+     * in a bad way*/
     mutex_lock(&cv->queue_mutex);
 
-    /*Check for stored signals*/
+    /* Check for stored signals */
     if(cv->signal_count > 0) {
         cv->signal_count--;
         mutex_unlock(mp);
@@ -95,11 +109,14 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
 }
 
 
-//TODO: Fix comments for the function
-/** @brief this function is called by a thread which wishes to signal
- *         the occurence of an event to a thread which is waiting for 
- *         the event. The thread is awoken and we set the reject value 
- *         to be 1.
+/** @brief this function signals an event and wakes up a waiting thread
+ *         if present
+ *
+ *  Grab a mutex to prevent unfortunate interleavings of this function 
+ *  with other cond var functions. Increment a variable to avoid the lost
+ *  signal problem. If the queue of currently waiting threads is not empty
+ *  we make_runnable that thread and free the struct associated with that 
+ *  struct.
  *
  *  @param cv a pointer to the condition variable
  *  @return void
@@ -120,4 +137,3 @@ void cond_signal(cond_t *cv) {
 
     mutex_unlock(&cv->queue_mutex);
 }
-
