@@ -14,8 +14,9 @@
 #include <errors.h>
 #include <malloc.h>
 #include <cond.h>
-#include <simics.h>
+#include <autostack.h>
 #include <contracts.h>
+#include <thr_internals.h>
 
 #define STACK_PADDING(size) ((((size)%4)==0)?0:(4-((size)%4)))
 
@@ -40,6 +41,7 @@ static void add_tcb(int tid, void *stack_base);
  * @return int 0 if initialization is successful. -1 otherwise
  */
 int thr_init(unsigned int size) {
+    uninstall_seh();
     stack_size = size + STACK_PADDING(size);
 	mutex_init(&tcb_lock);
     init_head(&head.tcb_list);
@@ -134,6 +136,20 @@ void thr_exit(void *status) {
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
 	vanish();
+}
+
+/**
+ * @brief wrapper function to install exception handler for new thread
+ *        and call thread function
+ *
+ * @param func_addr address of thread function
+ * @param arg arguments to thread function
+ * @return Void
+ */
+void new_thread_init(void *(*func_addr)(void *), void *arg) {	
+    install_seh_multi();
+    func_addr(arg);
+    thr_exit((void *) 0);       /* in case thr_exit not called by programmer */
 }
 
 /**

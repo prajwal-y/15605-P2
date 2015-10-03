@@ -32,9 +32,8 @@ thread_fork:
     ret
      
 handle_child_thr:
-	movl %ebx, %esp /*Update %esp of the new thread stack*/
-	pushl %edx /*Push the arguments to func*/
-	call %ecx /*Call the new thread function*/
-	pushl %eax
-	call thr_exit
-	ret
+	movl %ebx, %esp      /*Update %esp of the new thread stack*/
+	pushl %edx           /*Push the arguments to func*/
+    pushl %ecx           /* Address of the thread function */
+	call new_thread_init /* Call the new thread wrapper */
+	ret                  /* Should never come here */
