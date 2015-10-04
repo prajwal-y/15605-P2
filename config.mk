@@ -87,7 +87,7 @@ UPDATE_METHOD = afs
 #
 410TESTS = actual_wait startle misbehave_wrap thr_exit_join agility_drill cyclone \
 			stack_test1 getpid_test1 join_specific_test bistromath cat paraguay \
-			switzerland juggle multitest cvar_test
+			switzerland juggle multitest cvar_test rwlock_downgrade_read_test
 
 ###########################################################################
 # Test programs you have written which you wish to run
@@ -100,7 +100,7 @@ STUDENTTESTS =
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = asm.o malloc.o panic.o mutex.o cond_var.o thread.o
+THREAD_OBJS = asm.o malloc.o panic.o mutex.o cond_var.o thread.o rwlock.o
 
 # Thread Group Library Support.
 #
