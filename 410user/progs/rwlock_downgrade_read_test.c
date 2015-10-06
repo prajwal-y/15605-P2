@@ -39,7 +39,6 @@ void *f(void *arg)
 {
 	REPORT_MISC("all mimsy were the reader threads");
 	rwlock_lock(&lock, RWLOCK_READ);
-    lprintf("getting the lock");
 	g();
 	return((void *)0);
 }
@@ -56,7 +55,6 @@ int main()
 	REPORT_ON_ERR(rwlock_init(&lock));
 	REPORT_ON_ERR(mutex_init(&read_count_lock));
 	rwlock_lock(&lock, RWLOCK_WRITE);
-    lprintf("got the lock");
 
 	if ((tid1 = thr_create(f, NULL)) < 0) {
 		REPORT_MISC("Failed create");
