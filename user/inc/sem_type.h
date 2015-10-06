@@ -5,9 +5,14 @@
 #ifndef _SEM_TYPE_H
 #define _SEM_TYPE_H
 
+#include <cond.h>
+#include <mutex.h>
 
 typedef struct sem {
-  /* fill this in */
+	mutex_t mutex;
+	cond_t cond_var;
+	int count;
+	int valid;
 } sem_t;
 
 #endif /* _SEM_TYPE_H */
