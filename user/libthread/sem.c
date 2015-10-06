@@ -21,11 +21,11 @@ int sem_init(sem_t *sem, int count) {
 	if(sem == NULL || count <= 0) {
 		return -1;
 	}
-    mutex_init(&sem->mutex);
-    cond_init(&sem->cond_var);
-    sem->count = count;
+	mutex_init(&sem->mutex);
+	cond_init(&sem->cond_var);
+	sem->count = count;
 	sem->valid = 1;
-    return 0;
+	return 0;
 }
 
 /**
