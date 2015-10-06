@@ -91,7 +91,7 @@ int thr_create(void *(*func)(void *), void *arg) {
  * @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
-	if(tid < 0 || statusp == NULL) {
+	if(tid < 0) {
 		return ERR_INVAL;
 	}
 	mutex_lock(&tcb_lock);
@@ -104,8 +104,9 @@ int thr_join(int tid, void **statusp) {
 		cond_wait(&tcb->waiting_threads, &tcb->tcb_mutex);
 		mutex_lock(&tcb->tcb_mutex);
 	}
-	
-	*statusp = tcb->status;
+	if (statusp != NULL) {
+    	*statusp = tcb->status;
+    }
 	if(tcb->stack_base != NULL) {
 		free(tcb->stack_base);
 	}

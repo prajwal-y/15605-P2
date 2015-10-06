@@ -11,6 +11,7 @@
 #include <errors.h>
 #include <malloc.h>
 #include <mutex.h>
+#include <simics.h>
 
 /** @brief a struct to keep track of queue of threads blocked on something */
 typedef struct blocked_thread {
@@ -148,7 +149,9 @@ void cond_signal(cond_t *cv) {
  *  @return void
  */
 void cond_broadcast(cond_t *cv) {
+    lprintf("getting the lock");
 	mutex_lock(&cv->queue_mutex);
+    lprintf("got lock (^_^)");
     
     list_head *waiting_thread = get_first(&cv->waiting);
 	while(waiting_thread != NULL && waiting_thread != &cv->waiting) {
@@ -159,6 +162,7 @@ void cond_broadcast(cond_t *cv) {
         free(thr);
         make_runnable(next_tid);
 		waiting_thread = waiting_thread->next;
+        lprintf("slay the jabberwocky");
 	}
 
     mutex_unlock(&cv->queue_mutex);
