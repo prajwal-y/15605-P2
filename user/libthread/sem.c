@@ -18,6 +18,9 @@
  *  @return int 0 on success, error code on failure
  */
 int sem_init(sem_t *sem, int count) {
+	if(sem == NULL || count <= 0) {
+		return -1;
+	}
     mutex_init(&sem->mutex);
     cond_init(&sem->cond_var);
     sem->count = count;
