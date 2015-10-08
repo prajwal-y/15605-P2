@@ -7,7 +7,6 @@
 #include <cond.h>
 #include <mutex.h>
 #include <rwlock.h>
-#include <simics.h>
 #define RWLOCK_FREE 2
 
 /** @brief function to initialize a read-write lock
@@ -43,16 +42,13 @@ void rwlock_lock(rwlock_t *rwlock, int type) {
     } 
     else if (type == RWLOCK_READ) {
         while (rwlock->type == RWLOCK_WRITE || rwlock->num_writers > 0) {
-            lprintf("round and round we go, ttype is %d and num_writers is %d",rwlock->type, rwlock->num_writers );
             cond_wait(&rwlock->readers, &rwlock->mutex);
-            lprintf("Woken up!");
             mutex_lock(&rwlock->mutex);
         }
         rwlock->curr_readers++;
         rwlock->type = RWLOCK_READ;
     }
     mutex_unlock(&rwlock->mutex);
-    lprintf("we go out of lock!");
 }
 
 void rwlock_unlock(rwlock_t *rwlock) {
