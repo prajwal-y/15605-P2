@@ -30,25 +30,39 @@ static mutex_t tcb_lock;
 /*Helper functions*/
 static tcb_t *find_tcb(int tid);
 static void remove_tcb(tcb_t *tcb);
-static void add_tcb(int tid, void *stack_base);
+static void add_tcb(int tid, tcb_t *tcb);
+static tcb_t *init_tcb(void *stack_base);
 
 /**
  * @brief This function is responsible for initializing the
  * thread library.
+ *
+ * In a multi threaded environment we do not support growing the stack.
+ * So we first uninstall the software exception handler which grows the stack
+ * in a single threaded environment.
  *
  * @param size Size of the stack space available for each thread
  * 
  * @return int 0 if initialization is successful. -1 otherwise
  */
 int thr_init(unsigned int size) {
+    int ret_val;
+
     uninstall_seh();
     stack_size = size + STACK_PADDING(size);
-	mutex_init(&tcb_lock);
+	ret_val = mutex_init(&tcb_lock);
+    if (ret_val < 0) {
+        return ret_val;
+    }
     init_head(&head.tcb_list);
+    tcb_t *tcb;
+    if ((tcb = init_tcb(NULL)) == NULL) {
+        return ERR_INVAL;
+    }
 
 	/*Add the current thread to the TCB list*/
 	mutex_lock(&tcb_lock);
-	add_tcb(thr_getid(), NULL);
+	add_tcb(thr_getid(), tcb);
 	mutex_unlock(&tcb_lock);
 
 	return 0;
@@ -63,16 +77,20 @@ int thr_init(unsigned int size) {
  * @param arg Parameters to the function to be called by the thread
  *
  * @return int If thread creation is successful, the thread ID of the 
- * new thread is returned. Otherwise, -1 is returned.
+ * new thread is returned. Otherwise, a negative value is returned.
  */
 int thr_create(void *(*func)(void *), void *arg) {
     char *stack_base = ((char *)malloc(stack_size));
     if (stack_base == NULL) {
         return ERR_NOMEM;
     }
+    tcb_t *tcb;
+    if ((tcb = init_tcb(NULL)) == NULL) {
+        return ERR_INVAL;
+    }
 	mutex_lock(&tcb_lock); /*Lock the TCB list for adding a TCB entry*/
 	int tid = thread_fork((stack_base + stack_size), func, arg);
-	add_tcb(tid, stack_base);
+	add_tcb(tid, tcb);
 	mutex_unlock(&tcb_lock);
 
 	return tid;
@@ -121,6 +139,7 @@ int thr_join(int tid, void **statusp) {
 /**
  * @brief This function exits the thread with exit status.
  *
+ * If the thread does not exist we simply return.
  * @param status The exit status of the thread.
  *
  * @return Void 
@@ -132,7 +151,10 @@ void thr_exit(void *status) {
 	tcb_t *tcb = find_tcb(tid);
 	mutex_unlock(&tcb_lock);
 
-	assert(tcb != NULL);
+    if (tcb == NULL) {  /* Thread does not exist so just ignore */
+        return;
+    }
+
 	tcb->exited = 1;
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
@@ -194,21 +216,48 @@ tcb_t *find_tcb(int tid) {
 	return NULL;
 }
 
-/**
- * @brief Function to add an entry to the list of TCBs
+/** @brief Function to initialize a tcb struct
  *
- * @param stack_base Base address of the stack of the thread
+ *  Calls to this function are not thread safe and must be protected
+ *  by a mutex.
  *
- * @return Void
+ *  @param stack_base Base address of the stack of the thread.
+ *
+ *  @return tcb_t * return pointer to an initialized tcb or NULL if it fails
  */
-void add_tcb(int tid, void *stack_base) {
+tcb_t *init_tcb(void *stack_base) {
 	tcb_t *tcb = (tcb_t *)malloc(sizeof(tcb_t));
+    if (tcb == NULL) {
+        return NULL;
+    }
 	tcb->stack_base = stack_base;
-	tcb->id = tid;
 	tcb->exited = 0;
 	tcb->reject = 0;
-	cond_init(&tcb->waiting_threads);
-	mutex_init(&tcb->tcb_mutex);
+	int cond_ret = cond_init(&tcb->waiting_threads);
+    if (cond_ret < 0) {
+        free(tcb);
+        return NULL;
+    }
+	int mutex_ret = mutex_init(&tcb->tcb_mutex);
+    if (mutex_ret < 0) {
+        free(tcb);
+        return NULL;
+    }
+    return tcb;
+}
+
+/** @brief Function to add a TCB to the TCB list
+ *
+ *  Calls to this function are not thread safe and must be protected
+ *  by a mutex. This function sets the tid in the TCB.
+ *
+ *  @param tid the tid of the TCB being added
+ *  @param tcb pointer to the sruct holding the TCB data
+ *
+ *  @return tcb_t * return pointer to an initialized tcb or NULL if it fails
+ */
+void add_tcb(int tid, tcb_t *tcb) {
+    tcb->id = tid;
 	add_to_tail(&tcb->tcb_list, &head.tcb_list);
 }
 
