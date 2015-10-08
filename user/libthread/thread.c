@@ -115,8 +115,10 @@ int thr_join(int tid, void **statusp) {
 	mutex_lock(&tcb_lock);
 	tcb_t *tcb = find_tcb(tid);
 	mutex_unlock(&tcb_lock);
+    if (tcb == NULL) {
+        return ERR_INVAL;
+    }
     
-	assert(tcb != NULL);
 	mutex_lock(&tcb->tcb_mutex);
 	while(tcb->exited != 1) {
 		cond_wait(&tcb->waiting_threads, &tcb->tcb_mutex);

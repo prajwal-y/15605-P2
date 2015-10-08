@@ -42,10 +42,10 @@ void rwlock_lock(rwlock_t *rwlock, int type) {
         rwlock->type = RWLOCK_WRITE;
     } 
     else if (type == RWLOCK_READ) {
-        while ((rwlock->type != RWLOCK_FREE && rwlock->type != RWLOCK_READ)
-                && rwlock->num_writers > 0) {
-            lprintf("round and round we go");
+        while (rwlock->type == RWLOCK_WRITE || rwlock->num_writers > 0) {
+            lprintf("round and round we go, ttype is %d and num_writers is %d",rwlock->type, rwlock->num_writers );
             cond_wait(&rwlock->readers, &rwlock->mutex);
+            lprintf("Woken up!");
             mutex_lock(&rwlock->mutex);
         }
         rwlock->curr_readers++;
@@ -86,6 +86,7 @@ void rwlock_downgrade(rwlock_t *rwlock) {
     if (rwlock == NULL) {
         return;
     }
+    lprintf("Downgrading!");
     mutex_lock(&rwlock->mutex);
     if (rwlock->type != RWLOCK_WRITE) {
         mutex_unlock(&rwlock->mutex);
@@ -93,6 +94,8 @@ void rwlock_downgrade(rwlock_t *rwlock) {
     }
     rwlock->num_writers--;
     rwlock->curr_readers++;
+    rwlock->type = RWLOCK_READ;
     cond_broadcast(&rwlock->readers);
     mutex_unlock(&rwlock->mutex);
+    lprintf("all done!");
 }

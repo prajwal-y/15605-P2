@@ -11,12 +11,14 @@
 #include <errors.h>
 #include <malloc.h>
 #include <mutex.h>
+#include <thread.h>
 #include <simics.h>
 
 /** @brief a struct to keep track of queue of threads blocked on something */
 typedef struct blocked_thread {
     int tid;
     list_head link;
+    int broadcast;
 } blocked_thread_t;
 
 /** @brief initialize a cond var
@@ -67,7 +69,10 @@ void cond_destroy(cond_t *cv) {
  *  ourselves. The deschedule has to happen after we unlock mutexes and as such
  *  there is a potential race condition which is handled by going in a loop 
  *  and checking the value of signal_count. This while loop also ensures that
- *  one cond_signal wakes up only one waiting thread.
+ *  one cond_signal wakes up only one waiting thread. If cond_wait fails for 
+ *  any reason, cond_wait will return without actually putting the thread to 
+ *  sleep. In this case the cond_wait will degrade to a busy waiting loop
+ *  (assuming the programmer uses it in a while loop) .
  *
  *  @pre the mutex pointed to by mp must be locked
  *  @post the mutex pointed to by mp is unlocked
@@ -88,10 +93,17 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
         return;
     }
 
-    int tid = gettid();
+    int tid = thr_getid();
     blocked_thread_t *t = (blocked_thread_t *)
                             malloc(sizeof(blocked_thread_t));
+    if (t == NULL) {
+        mutex_unlock(mp);
+        mutex_unlock(&cv->queue_mutex);
+        return;
+    }
+
     t->tid = tid;
+    t->broadcast = 0;
     add_to_tail(&t->link, &cv->waiting);
     mutex_unlock(mp);
     mutex_unlock(&cv->queue_mutex);
@@ -99,8 +111,13 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
 	while(1) {
     	deschedule(&cv->signal_count);
 		mutex_lock(&cv->queue_mutex);
-		if(cv->signal_count > 0) {
-			cv->signal_count--;
+		if(cv->signal_count > 0 || t->broadcast) {
+            lprintf("Going to release");
+            if(!t->broadcast) {
+			    cv->signal_count--;
+            }
+            del_entry(&t->link);
+            free(t);
 			mutex_unlock(&cv->queue_mutex);
 			break;
 		}
@@ -129,9 +146,7 @@ void cond_signal(cond_t *cv) {
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
-        del_entry(waiting_thread);
         int next_tid = thr->tid;
-        free(thr);
         make_runnable(next_tid);
     }
 
@@ -149,20 +164,16 @@ void cond_signal(cond_t *cv) {
  *  @return void
  */
 void cond_broadcast(cond_t *cv) {
-    lprintf("getting the lock");
 	mutex_lock(&cv->queue_mutex);
-    lprintf("got lock (^_^)");
     
     list_head *waiting_thread = get_first(&cv->waiting);
 	while(waiting_thread != NULL && waiting_thread != &cv->waiting) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
-        del_entry(waiting_thread);
         int next_tid = thr->tid;
-        free(thr);
+        thr->broadcast = 1;
         make_runnable(next_tid);
 		waiting_thread = waiting_thread->next;
-        lprintf("slay the jabberwocky");
 	}
 
     mutex_unlock(&cv->queue_mutex);
