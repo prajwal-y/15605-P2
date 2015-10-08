@@ -125,7 +125,7 @@ void cond_signal(cond_t *cv) {
 	if(cv->status == 0) {
 		return;
 	}
-	mutex_lock(&cv->queue_mutex);
+	//mutex_lock(&cv->queue_mutex);
     
     list_head *waiting_thread = get_first(&cv->waiting);
     if (waiting_thread != NULL) {
@@ -136,7 +136,7 @@ void cond_signal(cond_t *cv) {
         make_runnable(next_tid);
     }
 
-    mutex_unlock(&cv->queue_mutex);
+    //mutex_unlock(&cv->queue_mutex);
 }
 
 /** @brief this function signals all threads waiting on this cond var
@@ -153,7 +153,7 @@ void cond_broadcast(cond_t *cv) {
 	if(cv->status == 0) {
 		return;
 	}
-	mutex_lock(&cv->queue_mutex);
+	//mutex_lock(&cv->queue_mutex);
     
     list_head *waiting_thread = get_first(&cv->waiting);
 	while(waiting_thread != NULL && waiting_thread != &cv->waiting) {
@@ -165,5 +165,5 @@ void cond_broadcast(cond_t *cv) {
 		waiting_thread = waiting_thread->next;
 	}
 
-    mutex_unlock(&cv->queue_mutex);
+    //mutex_unlock(&cv->queue_mutex);
 }

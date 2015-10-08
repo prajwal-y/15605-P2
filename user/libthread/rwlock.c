@@ -82,7 +82,6 @@ void rwlock_downgrade(rwlock_t *rwlock) {
     if (rwlock == NULL) {
         return;
     }
-    lprintf("Downgrading!");
     mutex_lock(&rwlock->mutex);
     if (rwlock->type != RWLOCK_WRITE) {
         mutex_unlock(&rwlock->mutex);
@@ -93,5 +92,4 @@ void rwlock_downgrade(rwlock_t *rwlock) {
     rwlock->type = RWLOCK_READ;
     cond_broadcast(&rwlock->readers);
     mutex_unlock(&rwlock->mutex);
-    lprintf("all done!");
 }
