@@ -157,9 +157,11 @@ void thr_exit(void *status) {
         return;
     }
 
+	mutex_lock(&tcb->tcb_mutex);
 	tcb->exited = 1;
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
+	mutex_unlock(&tcb->tcb_mutex);
 	vanish();
 }
 

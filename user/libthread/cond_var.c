@@ -17,6 +17,7 @@
 /** @brief a struct to keep track of queue of threads blocked on something */
 typedef struct blocked_thread {
     int tid;
+	int reject;
     list_head link;
 } blocked_thread_t;
 
@@ -35,7 +36,6 @@ int cond_init(cond_t *cv) {
         return ERR_INVAL;
     }
     cv->status = 1;
-    cv->signal_count = 0;
     if (mutex_init(&cv->queue_mutex) < 0) {
         return ERR_INVAL;
     }
@@ -72,7 +72,7 @@ void cond_destroy(cond_t *cv) {
  *  any reason, cond_wait will return without actually putting the thread to 
  *  sleep. In this case the cond_wait will degrade to a busy waiting loop
  *  (assuming the programmer uses it in a while loop) .
- *
+ *  TODO: FIX DOCUMENTATION
  *  @pre the mutex pointed to by mp must be locked
  *  @post the mutex pointed to by mp is unlocked
  *  @param cv a pointer to the condition variable
@@ -80,44 +80,32 @@ void cond_destroy(cond_t *cv) {
  *  @return void
  */
 void cond_wait(cond_t *cv, mutex_t *mp) {
-    /* Mutex to enure cond_wait and cond_join are not interleaved 
-     * in a bad way*/
-    mutex_lock(&cv->queue_mutex);
 
-    /* Check for stored signals */
-    if(cv->signal_count > 0) {
-        cv->signal_count--;
-        mutex_unlock(mp);
-        mutex_unlock(&cv->queue_mutex);
-        return;
-    }
+	if(cv->status == 0) {
+		return;
+	}
 
     int tid = thr_getid();
     blocked_thread_t *t = (blocked_thread_t *)
                             malloc(sizeof(blocked_thread_t));
     if (t == NULL) {
-        mutex_unlock(mp);
-        mutex_unlock(&cv->queue_mutex);
+        mutex_unlock(mp); //TODO: FIX THIS
         return;
     }
 
     t->tid = tid;
+	t->reject = 0;
+    mutex_lock(&cv->queue_mutex);
     add_to_tail(&t->link, &cv->waiting);
-    mutex_unlock(mp);
     mutex_unlock(&cv->queue_mutex);
 
-	while(1) {
-    	deschedule(&cv->signal_count);
-		mutex_lock(&cv->queue_mutex);
-		if(cv->signal_count > 0) {
-			cv->signal_count--;
-            del_entry(&t->link);
-            free(t);
-			mutex_unlock(&cv->queue_mutex);
-			break;
-		}
-		mutex_unlock(&cv->queue_mutex);
-	}
+    mutex_unlock(mp);
+	deschedule(&t->reject);
+
+	mutex_lock(&cv->queue_mutex);
+	del_entry(&t->link);
+	free(t);
+	mutex_unlock(&cv->queue_mutex);
 }
 
 
@@ -134,14 +122,17 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
  *  @return void
  */
 void cond_signal(cond_t *cv) {
+	if(cv->status == 0) {
+		return;
+	}
 	mutex_lock(&cv->queue_mutex);
-	cv->signal_count++;
     
     list_head *waiting_thread = get_first(&cv->waiting);
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
         int next_tid = thr->tid;
+		thr->reject = 1;
         make_runnable(next_tid);
     }
 
@@ -159,6 +150,9 @@ void cond_signal(cond_t *cv) {
  *  @return void
  */
 void cond_broadcast(cond_t *cv) {
+	if(cv->status == 0) {
+		return;
+	}
 	mutex_lock(&cv->queue_mutex);
     
     list_head *waiting_thread = get_first(&cv->waiting);
@@ -166,6 +160,7 @@ void cond_broadcast(cond_t *cv) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
         int next_tid = thr->tid;
+		thr->reject = 1;
         make_runnable(next_tid);
 		waiting_thread = waiting_thread->next;
 	}

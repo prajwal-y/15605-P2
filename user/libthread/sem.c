@@ -63,8 +63,8 @@ void sem_signal(sem_t *sem) {
     }
     mutex_lock(&sem->mutex);
 	sem->count++;
-    mutex_unlock(&sem->mutex);
 	cond_signal(&sem->cond_var);
+    mutex_unlock(&sem->mutex);
 }
 
 /**
