@@ -18,7 +18,6 @@
 typedef struct blocked_thread {
     int tid;
     list_head link;
-    int broadcast;
 } blocked_thread_t;
 
 /** @brief initialize a cond var
@@ -103,7 +102,6 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
     }
 
     t->tid = tid;
-    t->broadcast = 0;
     add_to_tail(&t->link, &cv->waiting);
     mutex_unlock(mp);
     mutex_unlock(&cv->queue_mutex);
@@ -111,11 +109,8 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
 	while(1) {
     	deschedule(&cv->signal_count);
 		mutex_lock(&cv->queue_mutex);
-		if(cv->signal_count > 0 || t->broadcast) {
-            lprintf("Going to release");
-            if(!t->broadcast) {
-			    cv->signal_count--;
-            }
+		if(cv->signal_count > 0) {
+			cv->signal_count--;
             del_entry(&t->link);
             free(t);
 			mutex_unlock(&cv->queue_mutex);
@@ -171,7 +166,6 @@ void cond_broadcast(cond_t *cv) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
         int next_tid = thr->tid;
-        thr->broadcast = 1;
         make_runnable(next_tid);
 		waiting_thread = waiting_thread->next;
 	}

@@ -173,8 +173,7 @@ void thr_exit(void *status) {
  */
 void new_thread_init(void *(*func_addr)(void *), void *arg) {	
     install_seh_multi();
-    func_addr(arg);
-    thr_exit((void *) 0);       /* in case thr_exit not called by programmer */
+    thr_exit(func_addr(arg));	/* in case thr_exit not called by programmer */
 }
 
 /**
