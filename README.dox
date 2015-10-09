@@ -5,6 +5,33 @@
 @author Prajwal Yadapadithaya (pyadapad)
 @author Rohit Upadhyaya (rjupadhy)
 
-Must document soon
+User Level Thread Library
+-------------------------
+
+The aim of this project is to implement a user level thread library. We describe the
+design and implementation of different parts of the library in this README.
+
+Mutex
+-----
+
+
+Condition variables
+-------------------
+
+
+Threads
+-------
+
+
+Semaphores
+----------
+
+
+Readers-Writers Lock
+--------------------
+
+
+Autostack Growth
+----------------
 
 */

@@ -26,7 +26,7 @@ int mutex_init(mutex_t *mp) {
     if (mp == NULL) {
         return ERR_INVAL;
     }
-    mp->value = 1;
+    mp->value = MUTEX_VALID;
     return 0;
 }
 
@@ -41,7 +41,7 @@ void mutex_destroy(mutex_t *mp) {
     if (mp == NULL) {
         return;
     }
-    mp->value = -1;
+    mp->value = MUTEX_INVALID;
 }
 
 /** @brief attempt to acquire the lock
@@ -56,6 +56,9 @@ void mutex_destroy(mutex_t *mp) {
  *  no thread will wait forever (maybe something as simple as a round robin
  *  scheduler).
  *
+ *  If the mutex is corrupted or destroyed, calling this function will result 
+ *  in undefined behaviour
+ *
  *  @return void
  */
 void mutex_lock(mutex_t *mp) {
@@ -64,7 +67,8 @@ void mutex_lock(mutex_t *mp) {
 
 /** @brief release a lock
  *
- *  Set the value of mutex
+ *  If the mutex is corrupted or destroyed, calling this function will result 
+ *  in undefined behaviour
  *
  *  @return void
  */
