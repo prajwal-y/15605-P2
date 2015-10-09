@@ -18,7 +18,6 @@
 typedef struct tcb {
     int id;
 	int exited;
-	int reject;
 	void *stack_base;
 	void *status;
     list_head tcb_list;

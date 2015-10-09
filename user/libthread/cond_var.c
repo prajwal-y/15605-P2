@@ -12,9 +12,13 @@
 #include <malloc.h>
 #include <mutex.h>
 #include <thread.h>
+#include <panic.h>
 #include <simics.h>
 
-/** @brief a struct to keep track of queue of threads blocked on something */
+#define DESCHEDULE 0
+#define RUNNABLE 1
+
+/** @brief a struct to keep track of queue of threads blocked */
 typedef struct blocked_thread {
     int tid;
 	int reject;
@@ -24,9 +28,9 @@ typedef struct blocked_thread {
 /** @brief initialize a cond var
  *
  *  Set status of cond var to 1. It "initializes" the mutex pointed to 
- *  by cv. This also initializes the head of queue of waiting threads. We also
- *  keep track of signals that happen before a wait by counting signals
- *  when the queue is empty. This way we avoid the lost signal problem. 
+ *  by cv. This also initializes the head of queue of waiting threads.
+ *  Calling this function on an already initialized function can lead to
+ *  undefined behavior.
  *
  *  @param cv a pointer to the condition variable
  *  @return 0 on success and ERR_INVAL for invalid input
@@ -35,7 +39,7 @@ int cond_init(cond_t *cv) {
     if (cv == NULL) {
         return ERR_INVAL;
     }
-    cv->status = 1;
+    cv->status = COND_VAR_VALID;
     if (mutex_init(&cv->queue_mutex) < 0) {
         return ERR_INVAL;
     }
@@ -45,8 +49,10 @@ int cond_init(cond_t *cv) {
 
 /** @brief destroy a cond var
  *
- *  Sets the value of the status to -1 indicating that it is inactive.
+ *  Sets the value of the status to 0 indicating that it is inactive.
  *  This function does not reclaim the space used by the cond var.
+ *  Once a cond var is destroyed calling cond var functions can lead to
+ *  undefined behavior.
  *
  *  @param cv a pointer to the condition variable
  *  @return void
@@ -56,32 +62,26 @@ void cond_destroy(cond_t *cv) {
         return;
     }
     mutex_destroy(&cv->queue_mutex);
-    cv->status = 0;
+    cv->status = COND_VAR_INVALID;
 }
 
 /** @brief This function allows a thread to sleep on a signal issued on 
  *         some condition
  *
- *  We check if there has been a call to cond_signal before cond_wait was 
- *  called by checking the signal_count value. If there has been a signal we
- *  just return. If not we add ourselves to the queue and attempt deschedule 
- *  ourselves. The deschedule has to happen after we unlock mutexes and as such
- *  there is a potential race condition which is handled by going in a loop 
- *  and checking the value of signal_count. This while loop also ensures that
- *  one cond_signal wakes up only one waiting thread. If cond_wait fails for 
- *  any reason, cond_wait will return without actually putting the thread to 
- *  sleep. In this case the cond_wait will degrade to a busy waiting loop
- *  (assuming the programmer uses it in a while loop) .
- *  TODO: FIX DOCUMENTATION
+ *  This function adds thread to the queue of blocked threads and deschedules
+ *  itself after unlocking the mutex associated with the cond var. When the 
+ *  thread is woken up the thread is removed from the queue and the mutex is 
+ *  locked before returning.
+ *
  *  @pre the mutex pointed to by mp must be locked
- *  @post the mutex pointed to by mp is unlocked
+ *  @post the mutex pointed to by mp is locked
+ *
  *  @param cv a pointer to the condition variable
  *  @param mp a pointer to the mutex associated with the thread
  *  @return void
  */
 void cond_wait(cond_t *cv, mutex_t *mp) {
-
-	if(cv->status == 0) {
+	if(cv->status == COND_VAR_INVALID) {    /* cond var has been destroyed */ 
 		return;
 	}
 
@@ -89,19 +89,22 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
     blocked_thread_t *t = (blocked_thread_t *)
                             malloc(sizeof(blocked_thread_t));
     if (t == NULL) {
-        mutex_unlock(mp); //TODO: FIX THIS
-        return;
+        die("Program ran out of memory!");
     }
 
     t->tid = tid;
-	t->reject = 0;
+	t->reject = DESCHEDULE;
+
+    /* Protect accesses to the queue */
     mutex_lock(&cv->queue_mutex);
     add_to_tail(&t->link, &cv->waiting);
     mutex_unlock(&cv->queue_mutex);
 
-    mutex_unlock(mp);
+    mutex_unlock(mp);   /* Unlock before we go to sleep */
 	deschedule(&t->reject);
+    mutex_lock(mp);     /* Mutex is locked upon return */
 
+    /* Protect accesses to the queue */
 	mutex_lock(&cv->queue_mutex);
 	del_entry(&t->link);
 	free(t);
@@ -112,58 +115,60 @@ void cond_wait(cond_t *cv, mutex_t *mp) {
 /** @brief this function signals an event and wakes up a waiting thread
  *         if present
  *
- *  Grab a mutex to prevent unfortunate interleavings of this function 
- *  with other cond var functions. Increment a variable to avoid the lost
- *  signal problem. If the queue of currently waiting threads is not empty
- *  we make_runnable that thread and free the struct associated with that 
- *  struct.
+ *  This function is called to signal a change in the state. This wakes up 
+ *  any thread that may be waiting for the change in state. Between the change
+ *  of state and the awakened thread getting the lock on the state, the state 
+ *  may have changed to an invalid state again. In this case it is the
+ *  responsibility of the programmer to check for the condition after being
+ *  woken up. This function MUST be called while holding the mutex protecting
+ *  the state. Calling cond_signal without holding the mutex can lead to 
+ *  undefined behavior.
  *
+ *  @pre the calling thread must hold the mutex
  *  @param cv a pointer to the condition variable
  *  @return void
  */
 void cond_signal(cond_t *cv) {
-	if(cv->status == 0) {
+	if(cv->status == COND_VAR_INVALID) {
 		return;
 	}
-	//mutex_lock(&cv->queue_mutex);
-    
+	mutex_lock(&cv->queue_mutex); 
     list_head *waiting_thread = get_first(&cv->waiting);
     if (waiting_thread != NULL) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
         int next_tid = thr->tid;
-		thr->reject = 1;
+		thr->reject = RUNNABLE;
         make_runnable(next_tid);
     }
+    mutex_unlock(&cv->queue_mutex);
 
-    //mutex_unlock(&cv->queue_mutex);
 }
 
 /** @brief this function signals all threads waiting on this cond var
  *         
+ *  This function MUST be called while holding the mutex to the shared state
+ *  without which the behavior is undefined. Any thread which calls cond_wait
+ *  after cond_broadcast has been called will not be signalled.
  *
- *  Grab a mutex to prevent unfortunate interleavings of this function 
- *  with other cond var functions. We just signal all threads and do not worry
- *  about signals being lost.
- *
+ *  @pre the calling thread must hold the mutex
  *  @param cv a pointer to the condition variable
  *  @return void
  */
 void cond_broadcast(cond_t *cv) {
-	if(cv->status == 0) {
+	if(cv->status == COND_VAR_INVALID) {
 		return;
 	}
-	//mutex_lock(&cv->queue_mutex);
+	mutex_lock(&cv->queue_mutex);
     
     list_head *waiting_thread = get_first(&cv->waiting);
 	while(waiting_thread != NULL && waiting_thread != &cv->waiting) {
         blocked_thread_t *thr = get_entry(waiting_thread, blocked_thread_t, 
                                           link);
         int next_tid = thr->tid;
-		thr->reject = 1;
+		thr->reject = RUNNABLE;
         make_runnable(next_tid);
 		waiting_thread = waiting_thread->next;
 	}
-
-    //mutex_unlock(&cv->queue_mutex);
+    mutex_unlock(&cv->queue_mutex);
 }

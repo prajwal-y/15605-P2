@@ -36,14 +36,12 @@ void rwlock_lock(rwlock_t *rwlock, int type) {
         rwlock->num_writers++;
         while (rwlock->type != RWLOCK_FREE && rwlock->curr_readers > 0) {
             cond_wait(&rwlock->writers, &rwlock->mutex);
-            mutex_lock(&rwlock->mutex);
         }
         rwlock->type = RWLOCK_WRITE;
     } 
     else if (type == RWLOCK_READ) {
         while (rwlock->type == RWLOCK_WRITE || rwlock->num_writers > 0) {
             cond_wait(&rwlock->readers, &rwlock->mutex);
-            mutex_lock(&rwlock->mutex);
         }
         rwlock->curr_readers++;
         rwlock->type = RWLOCK_READ;

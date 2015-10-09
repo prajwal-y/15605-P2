@@ -9,6 +9,9 @@
 #define _MUTEX_TYPE_H
 #include <list.h>
 
+#define MUTEX_VALID 1
+#define MUTEX_INVALID 0
+
 typedef struct mutex {
     int value;          /* Will be 0 or 1 */
     list_head waiting;  /* List of processes waiting for lock */

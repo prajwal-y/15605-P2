@@ -18,12 +18,14 @@
 #include <contracts.h>
 #include <thr_internals.h>
 
+#define TRUE 1
+#define FALSE 0
+
+
 #define STACK_PADDING(size) ((((size)%4)==0)?0:(4-((size)%4)))
 
 static unsigned int stack_size;
 static tcb_t head;
-static volatile int count1 = 0;
-static volatile int count2 = 0;
 
 static mutex_t tcb_lock;
 
@@ -33,17 +35,17 @@ static void remove_tcb(tcb_t *tcb);
 static void add_tcb(int tid, tcb_t *tcb);
 static tcb_t *init_tcb(void *stack_base);
 
-/**
- * @brief This function is responsible for initializing the
- * thread library.
+/** @brief This function is responsible for initializing the
+ *  thread library.
  *
- * In a multi threaded environment we do not support growing the stack.
- * So we first uninstall the software exception handler which grows the stack
- * in a single threaded environment.
+ *  In a multi threaded environment we do not support growing the stack.
+ *  So we first uninstall the software exception handler which grows the stack
+ *  in a single threaded environment. This function can be called only by one
+ *  thread at a time and only once per process.
  *
- * @param size Size of the stack space available for each thread
+ *  @param size Size of the stack space available for each thread
  * 
- * @return int 0 if initialization is successful. -1 otherwise
+ *  @return int 0 if initialization is successful. negative number on failure
  */
 int thr_init(unsigned int size) {
     int ret_val;
@@ -61,23 +63,22 @@ int thr_init(unsigned int size) {
     }
 
 	/*Add the current thread to the TCB list*/
-	mutex_lock(&tcb_lock);
+//	mutex_lock(&tcb_lock);
 	add_tcb(thr_getid(), tcb);
-	mutex_unlock(&tcb_lock);
+	//mutex_unlock(&tcb_lock);
 
 	return 0;
 }
 
-/**
- * @brief This function is responsible for creating a thread to 
- * run the function func(arg).
+/** @brief This function is responsible for creating a thread to 
+ *  run the function func(arg).
  *
- * @param func Function pointer to the function that the thread
- * needs to run
- * @param arg Parameters to the function to be called by the thread
+ *  @param func Function pointer to the function that the thread
+ *  needs to run
+ *  @param arg Parameters to the function to be called by the thread
  *
- * @return int If thread creation is successful, the thread ID of the 
- * new thread is returned. Otherwise, a negative value is returned.
+ *  @return int If thread creation is successful, the thread ID of the 
+ *  new thread is returned. Otherwise, a negative value is returned.
  */
 int thr_create(void *(*func)(void *), void *arg) {
     char *stack_base = ((char *)malloc(stack_size));
@@ -96,20 +97,19 @@ int thr_create(void *(*func)(void *), void *arg) {
 	return tid;
 }
 
-/**
- * @brief This function is responsible for "cleaning up" a thread with
- * given tid, optionally returning the status information provided by 
- * the thread at the time of exit. If the thread is not exited, it
- * will be suspended until the thread is exited.
+/** @brief This function is responsible for "cleaning up" a thread with
+ *  given tid, optionally returning the status information provided by 
+ *  the thread at the time of exit. If the thread is not exited, it
+ *  will be suspended until the thread is exited.
  *
- * @param tid Thread ID of the thread to be cleaned up.
- * @param statusp The value passed to thr_exit() by the joined thread 
- * will be placed in the location referenced by statusp.
+ *  @param tid Thread ID of the thread to be cleaned up.
+ *  @param statusp The value passed to thr_exit() by the joined thread 
+ *  will be placed in the location referenced by statusp.
  *
- * @return int 0 on success, error code (negative number) on error 
+ *  @return int 0 on success, error code (negative number) on error 
  */
 int thr_join(int tid, void **statusp) {
-	if(tid < 0) {
+	if (tid < 0) {
 		return ERR_INVAL;
 	}
 	mutex_lock(&tcb_lock);
@@ -120,9 +120,8 @@ int thr_join(int tid, void **statusp) {
     }
     
 	mutex_lock(&tcb->tcb_mutex);
-	while(tcb->exited != 1) {
+	while(tcb->exited != TRUE) {
 		cond_wait(&tcb->waiting_threads, &tcb->tcb_mutex);
-		mutex_lock(&tcb->tcb_mutex);
 	}
 	if (statusp != NULL) {
     	*statusp = tcb->status;
@@ -138,13 +137,12 @@ int thr_join(int tid, void **statusp) {
 	return 0;
 }
 
-/**
- * @brief This function exits the thread with exit status.
+/** @brief This function exits the thread with exit status.
  *
- * If the thread does not exist we simply return.
- * @param status The exit status of the thread.
+ *  If the thread does not exist we simply return.
+ *  @param status The exit status of the thread.
  *
- * @return Void 
+ *  @return Void 
  */
 void thr_exit(void *status) {
 	int tid = thr_getid();
@@ -153,55 +151,51 @@ void thr_exit(void *status) {
 	tcb_t *tcb = find_tcb(tid);
 	mutex_unlock(&tcb_lock);
 
-    if (tcb == NULL) {  /* Thread does not exist so just ignore */
-        return;
+    if (tcb == NULL) { /* Can happen only if called without calling thr_init */
+        vanish();
     }
 
 	mutex_lock(&tcb->tcb_mutex);
-	tcb->exited = 1;
+	tcb->exited = TRUE;
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
 	mutex_unlock(&tcb->tcb_mutex);
 	vanish();
 }
 
-/**
- * @brief wrapper function to install exception handler for new thread
+/** @brief wrapper function to install exception handler for new thread
  *        and call thread function
  *
- * @param func_addr address of thread function
- * @param arg arguments to thread function
- * @return Void
+ *  @param func_addr address of thread function
+ *  @param arg arguments to thread function
+ *  @return Void
  */
 void new_thread_init(void *(*func_addr)(void *), void *arg) {	
     install_seh_multi();
     thr_exit(func_addr(arg));	/* in case thr_exit not called by programmer */
 }
 
-/**
- * @brief This function returns the thread ID of the current thread
+/** @brief This function returns the thread ID of the current thread
  *
- * @return int The thread ID of the current thread.
+ *  @return int The thread ID of the current thread.
  */
 int thr_getid() {
-	return gettid(); //TODO: FIX THIS
+	return gettid();
 }
 
-/**
- * @brief Defers execution of the invoking thread to a later time in
- * favor of the thread with ID.
+/** @brief Defers execution of the invoking thread to a later time in
+ *         favor of the thread with ID.
  *
- * @param tid Thread ID of the thread whose execution needs to be deferred
+ *  @param tid Thread ID of the thread whose execution needs to be deferred
  *
- * @return int 0 if successful, 
+ *  @return int 0 if successful, 
  */
 int thr_yield(int tid) {
 	return yield(tid);
 }
 
-/**
- * @brief Function to linearly scan the list of TCBs for the TCB with the
- * given ID.
+/** @brief Function to linearly scan the list of TCBs for the TCB with the
+ *         given ID.
  *
  * @param tid Thread ID
  *
@@ -234,8 +228,7 @@ tcb_t *init_tcb(void *stack_base) {
         return NULL;
     }
 	tcb->stack_base = stack_base;
-	tcb->exited = 0;
-	tcb->reject = 0;
+	tcb->exited = FALSE;
 	int cond_ret = cond_init(&tcb->waiting_threads);
     if (cond_ret < 0) {
         free(tcb);
@@ -264,16 +257,14 @@ void add_tcb(int tid, tcb_t *tcb) {
 	add_to_tail(&tcb->tcb_list, &head.tcb_list);
 }
 
-/**
- * @brief Function to remove an entry from the list of TCBs
+/** @brief Function to remove an entry from the list of TCBs
  *
- * @param tcb TCB to be removed
+ *  @param tcb TCB to be removed
  *
- * @return Void
+ *  @return Void
  */
 void remove_tcb(tcb_t *tcb) {	
 	del_entry(&tcb->tcb_list);
-	mutex_unlock(&tcb->tcb_mutex);
 	mutex_destroy(&tcb->tcb_mutex);
 	cond_destroy(&tcb->waiting_threads);
 	free(tcb);

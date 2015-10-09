@@ -5,6 +5,8 @@
 #ifndef _COND_TYPE_H
 #define _COND_TYPE_H
 
+#define COND_VAR_VALID 1
+#define COND_VAR_INVALID 0
 
 typedef struct cond {
     int status;

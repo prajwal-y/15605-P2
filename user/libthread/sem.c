@@ -43,7 +43,6 @@ void sem_wait(sem_t *sem) {
     mutex_lock(&sem->mutex);
 	while(sem->count == 0) {
 		cond_wait(&sem->cond_var, &sem->mutex);
-		mutex_lock(&sem->mutex);
 	}
 	sem->count--;
     mutex_unlock(&sem->mutex);
