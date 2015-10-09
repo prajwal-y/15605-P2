@@ -9,29 +9,88 @@ User Level Thread Library
 -------------------------
 
 The aim of this project is to implement a user level thread library. We describe the
-design and implementation of different parts of the library in this README.
+design and implementation of different parts of the library in this README. In each 
+part, we describe the implementation and design decisions in each of the code files.
 
 Mutex
 -----
+mutex.c : This file implements all the functions supported by the mutex library, i.e.,
+mutex_init(), mutex_destroy(), mutex_lock() and mutex_unlock(). Please refer to the 
+documentation of each of these functions for more details.
+We implement mutex_lock with the help of a spin loop trying to perform a 
+"test and unset" operation on the mutex variable. If the value 0 is set in the variable
+using the XCHG instruction, then we return saying that the lock is acquired. We also
+assume that we are in a uniprocessor environment <ADD REASON FOR NOT HAVING BOUNDED WAITING>
 
 
 Condition variables
 -------------------
+cond_var.c: This file implements all the operations supported by the condition variable
+library, i.e., cond_init(), cond_destroy(), cond_wait(), cond_signal() and cond_broadcast().
+Please refer to the documentation of each of these functions for more details.
+
+In cond_wait, we deschedule the calling thread (after releasing the lock) before adding the 
+details of the thread to a queue (implemented using a doubly linked list) atomically using a
+mutex. When the thread is woken up by a signal, we delete the entry for the thread and free 
+the memory allocated for the entry in the queue atomically, and upon acquiring the lock again, 
+the function is returned.
+
+In cond_signal, we get the first entry from the queue (This operation is protected by a queue mutex)
+of descheduled threads and we make the thread runnable.
+
+In cond_broadcast, we go through all the entries currently present in the queue atomically, and
+we make all those threads runnable.
 
 
 Threads
 -------
+thread.c: This file implements all the operations supported by the thread library, i.e.,
+thr_create(), thr_join(), thr_exit(), thr_getid() and thr_yield(). Please refer to the
+documentation of each of these functions for more details.
 
+Our thread library follows the 1:1 model, i.e., there is one kernel thread created for
+every user thread. We also maintain a list of TCBs (implemented using a doubly linked list) in
+our thread library to keep track of the threads being created. On initialization of the thread
+library, we initialize this list and add the calling thread to the list.
+
+We allocate memory on the heap using malloc() for the stack for each thread. We also have a struct
+defined to keep track of the details of the threads created (including the stack base address,
+status etc).
+
+The thread_create() function calls the thread_fork system call after copying the required values to
+the registers (stack_base, address of the function to be called by the new thread and the arguments).
+Therefore, when the new thread starts executing, it already has the required data in the registers,
+which are used for setting the esp value, and caling the function required. This function also
+adds the TCB entry for the newly created thread.
+
+The thr_join() function calls cond_wait() to wait until the thread is exited. Once the thread that
+is being waited upon is exited, the entry for the thread is removed from the TCB list.
+
+The thr_exit() function finds the TCB entry for the thread, and sets the status of the thread to
+exited. Before calling the vanish() system call, the memory allocated for the stack of the thread
+is free'd.
+
+The thr_getid() and thr_yield() functions directly call the corresponding system call stubs as the
+thread library follows a 1:1 model
+
+The TCB list is protected by a mutex when any modifications are being done to it.
 
 Semaphores
 ----------
-
+sem.c:  This file implements all the operations supported by the semaphore library.
+Semaphores are implemented using mutexes and condition variables.
 
 Readers-Writers Lock
 --------------------
-
+rwlock.c: This file implements all the operations supported by the readers writers lock library.
+Readers-writers locks are implemented using mutexes and condition variables.
 
 Autostack Growth
 ----------------
+
+
+Other files
+-----------
+list.c : 
 
 */

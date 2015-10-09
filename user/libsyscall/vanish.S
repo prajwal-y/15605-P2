@@ -11,14 +11,8 @@
 .global vanish
 
 vanish:
-    /* Setup */
-    pushl %ebp          /* Old EBP */
-    movl %esp,%ebp      /* New EBP */
-
     /* Body */
     int $VANISH_INT
 
     /* Finish */
-    movl %ebp,%esp      /* Reset esp to start */
-    popl %ebp           /* Restore ebp */
     ret                 

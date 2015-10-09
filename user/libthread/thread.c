@@ -63,9 +63,7 @@ int thr_init(unsigned int size) {
     }
 
 	/*Add the current thread to the TCB list*/
-//	mutex_lock(&tcb_lock);
 	add_tcb(thr_getid(), tcb);
-	//mutex_unlock(&tcb_lock);
 
 	return 0;
 }
@@ -126,9 +124,6 @@ int thr_join(int tid, void **statusp) {
 	if (statusp != NULL) {
     	*statusp = tcb->status;
     }
-	if(tcb->stack_base != NULL) {
-		free(tcb->stack_base);
-	}
 	
 	mutex_lock(&tcb_lock);
 	remove_tcb(tcb);
@@ -160,6 +155,9 @@ void thr_exit(void *status) {
 	tcb->status = status;
 	cond_signal(&tcb->waiting_threads);
 	mutex_unlock(&tcb->tcb_mutex);
+	if(tcb->stack_base != NULL) {
+		free(tcb->stack_base);
+	}
 	vanish();
 }
 
