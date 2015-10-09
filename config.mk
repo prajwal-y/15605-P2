@@ -101,7 +101,7 @@ STUDENTTESTS = print_test
 ###########################################################################
 # Object files for your thread library
 ###########################################################################
-THREAD_OBJS = asm.o malloc.o panic.o mutex.o cond_var.o thread.o rwlock.o sem.o ../list.o
+THREAD_OBJS = asm.o malloc.o panic.o mutex.o cond_var.o thread.o rwlock.o sem.o list.o
 
 # Thread Group Library Support.
 #
