@@ -17,10 +17,14 @@ Mutex
 mutex.c : This file implements all the functions supported by the mutex library, i.e.,
 mutex_init(), mutex_destroy(), mutex_lock() and mutex_unlock(). Please refer to the 
 documentation of each of these functions for more details.
-We implement mutex_lock with the help of a spin loop trying to perform a 
-"test and unset" operation on the mutex variable. If the value 0 is set in the variable
-using the XCHG instruction, then we return saying that the lock is acquired. We also
-assume that we are in a uniprocessor environment <ADD REASON FOR NOT HAVING BOUNDED WAITING>
+We implement mutex_lock with the help of a spin loop trying to perform an atomic
+"test and unset" operation on the mutex variable. We have chosen 0 to mean the mutex
+is locked and 1 to mean it is free. The mutex implementation approximates bounded
+waiting without us writing any particular code for this. For this we invoke the 
+properties of the scheduler that our kernel provides and assume it does a fair 
+scheduling of threads. This means that once the lock has been released the next 
+thread scheduled is highly likely to get the lock before it gets preempted since
+the number of instructions to test and acquire the lock are short. 
 
 
 Condition variables
@@ -83,7 +87,11 @@ Semaphores are implemented using mutexes and condition variables.
 Readers-Writers Lock
 --------------------
 rwlock.c: This file implements all the operations supported by the readers writers lock library.
-Readers-writers locks are implemented using mutexes and condition variables.
+Readers-writers locks are implemented using mutexes and condition variables. The rwlock type
+keeps track of the number of writers and readers. The type also has 2 condition variables for 
+readers and writers waiting on the lock. This implementation of read-write locks ensures that
+writers do not starve. This is done by keeping count of the writers and making readers wait if
+either the lock is currently held by a writer or there are writers waiting for the lock. 
 
 Autostack Growth
 ----------------
